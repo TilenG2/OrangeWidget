@@ -158,22 +158,22 @@ class UncertainTreeLearner(Learner):
             if best_score == 0:
                 return REJECT_ATTRIBUTE
             
-            temp = []
-            sorted_col_x = sorted(col_x)
+            feature_with_metas = []
             for X, meta in zip(data.X, data.metas):
-                temp.append([X[attr_no], meta[attr_no]])
-            temp = np.array(temp)
-            temp = temp[temp[:, 0].argsort()]
-            print("_______")
-            print(attr_no, "X     meta")
-            print(temp)
-            index_best_cut = sorted_col_x.index(best_cut) #TODO problem if 2 values are equal i think
+                feature_with_metas.append([X[attr_no], meta[attr_no]])
+            feature_with_metas = np.array(feature_with_metas)
+            feature_with_metas = feature_with_metas[feature_with_metas[:, 0].argsort()]
+            # print("_______")
+            # print(attr_no, "X     meta")
+            # print(feature_with_metas)
+            index_best_cut = np.where(feature_with_metas[:, 0]==best_cut)[0][-1]
+            
             print("orig best cut", best_cut)
-            best_cut = (sorted_col_x[index_best_cut] + sorted_col_x[index_best_cut+1]) * 0.5
-            # print("L best_cut R", temp[index_best_cut], best_cut, temp[index_best_cut+1])
-            offset = (-temp[index_best_cut][1] + temp[index_best_cut+1][1]) * 0.5
+            best_cut = (feature_with_metas[index_best_cut][0] + feature_with_metas[index_best_cut+1][0]) * 0.5
+            print("L best_cut R", feature_with_metas[index_best_cut], best_cut, feature_with_metas[index_best_cut+1])
+            offset = (-feature_with_metas[index_best_cut][1] + feature_with_metas[index_best_cut+1][1]) * 0.5
             best_cut = best_cut + offset
-            print("L best_cut R", temp[index_best_cut], best_cut, temp[index_best_cut+1])
+            print("L best_cut+offset R", feature_with_metas[index_best_cut], best_cut, feature_with_metas[index_best_cut+1])
             
             best_score *= non_nans / len(col_x)
             branches = np.full(len(col_x), -1, dtype=int)
@@ -185,7 +185,7 @@ class UncertainTreeLearner(Learner):
 
         #######################################
         # The real _select_attr starts here
-        print("----------new branch---------------")
+        # print("----------new branch---------------")
         is_sparse = sp.issparse(data.X)
         domain = data.domain
         class_var = domain.class_var
@@ -219,19 +219,22 @@ class UncertainTreeLearner(Learner):
         Returns:
             root node (Node)"""
         node_insts = data[active_inst]
+        # print(node_insts)
         distr = distribution.Discrete(node_insts, data.domain.class_var)
-        if len(node_insts) < self.min_samples_leaf:
-            return None
+        # if len(node_insts) < self.min_samples_leaf:
+        #     print("skip")
+        #     return None
         if len(node_insts) < self.min_samples_split or \
                 max(distr) >= sum(distr) * self.sufficient_majority or \
                 self.max_depth is not None and level > self.max_depth:
+            # print("skip1")        
             node, branches, n_children = Node(None, None, distr), None, 0
         else:
             node, branches, n_children = self._select_attr(node_insts)
-            if branches is not None and _all_equal(branches) and len(branches) > 1:
+            if branches is not None and _all_equal(branches):
                 node, branches, n_children = Node(None, None, distr), None, 0
         node.subset = active_inst
-        if branches is not None:
+        if branches is not None: # len(branches) - self.min_samples_leaf > np.sum(branches) >= self.min_samples_leaf
             node.children = [
                 self._build_tree(data, active_inst[branches == br], level + 1)
                 for br in range(n_children)]
@@ -251,7 +254,7 @@ class UncertainTreeLearner(Learner):
         # print(data.domain)
         # print(data.X)
         # print(data.Y)
-        print("fit()") 
+        print("--------------fit()------------") 
         root = self._build_tree(data, active_inst)
         if root is None:
             distr = distribution.Discrete(data, data.domain.class_var)
@@ -353,6 +356,4 @@ class OWUncertaintyTree(OWBaseLearner):
 
 
 if __name__ == "__main__":  # pragma: no cover
-    df = pd.read_csv("data.csv")
-    print(df)
     WidgetPreview(OWUncertaintyTree).run(Table("iris"))

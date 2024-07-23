@@ -65,7 +65,7 @@ class UncertainTreeLearner(Learner):
     def __init__(
             self, *args, binarize=False, max_depth=None,
             min_samples_leaf=1, min_samples_split=2, sufficient_majority=0.95,
-            preprocessors=None, **kwargs):
+            preprocessors=None, uncertainty_multiplyer=0.5, **kwargs):
         super().__init__(preprocessors=preprocessors)
         self.params = {}
         self.binarize = self.params['binarize'] = binarize
@@ -73,6 +73,7 @@ class UncertainTreeLearner(Learner):
         self.min_samples_split = self.params['min_samples_split'] = min_samples_split
         self.sufficient_majority = self.params['sufficient_majority'] = sufficient_majority
         self.max_depth = self.params['max_depth'] = max_depth
+        self.uncertainty_multiplyer = uncertainty_multiplyer
 
     def _select_attr(self, data):
         """Select the attribute for the next split.
@@ -86,6 +87,9 @@ class UncertainTreeLearner(Learner):
         attr = attr_no = None
         col_x = None
         REJECT_ATTRIBUTE = 0, None, None, 0
+        
+        # def _calculate_treshold(e1, e2, u1, u2):
+            
 
         def _score_disc():
             """Scoring for discrete attributes, no binarization
@@ -158,28 +162,58 @@ class UncertainTreeLearner(Learner):
             if best_score == 0:
                 return REJECT_ATTRIBUTE
             
-            feature_with_metas = []
-            for X, meta in zip(data.X, data.metas):
-                feature_with_metas.append([X[attr_no], meta[attr_no]])
-            feature_with_metas = np.array(feature_with_metas)
+            # feature_with_metas = []
+            # for X, meta in zip(data.X, data.metas):
+            #     feature_with_metas.append([X[attr_no], meta[attr_no]])
+            # feature_with_metas = np.array(feature_with_metas)
+            
+            feature_with_metas = np.hstack((
+                data.get_column(attr_no)[:, None],
+                data.get_column(domain.attributes[attr_no].name.replace("Observed Value", "Uncertainty"))[:, None]
+            ))
+            
             feature_with_metas = feature_with_metas[feature_with_metas[:, 0].argsort()]
             # print("_______")
             # print(attr_no, "X     meta")
             # print(feature_with_metas)
             index_best_cut = np.where(feature_with_metas[:, 0]==best_cut)[0][-1]
-            
-            print("orig best cut", best_cut)
-            best_cut = (feature_with_metas[index_best_cut][0] + feature_with_metas[index_best_cut+1][0]) * 0.5
-            print("L best_cut R", feature_with_metas[index_best_cut], best_cut, feature_with_metas[index_best_cut+1])
-            offset = (-feature_with_metas[index_best_cut][1] + feature_with_metas[index_best_cut+1][1]) * 0.5
-            best_cut = best_cut + offset
-            print("L best_cut+offset R", feature_with_metas[index_best_cut], best_cut, feature_with_metas[index_best_cut+1])
-            
-            best_score *= non_nans / len(col_x)
-            branches = np.full(len(col_x), -1, dtype=int)
-            mask = ~np.isnan(col_x)
-            branches[mask] = (col_x[mask] > best_cut).astype(int)
-            print(branches)
+            used_indexes = []
+            shift = False
+            while(True):
+                # print("orig best cut", best_cut)
+                best_cut = (feature_with_metas[index_best_cut][0] + feature_with_metas[index_best_cut+1][0]) * 0.5
+                # print("L best_cut R", feature_with_metas[index_best_cut], best_cut, feature_with_metas[index_best_cut+1])
+                offset = (-feature_with_metas[index_best_cut][1] + feature_with_metas[index_best_cut+1][1]) * self.uncertainty_multiplyer
+                best_cut = best_cut + offset
+                # print("L best_cut+offset R", feature_with_metas[index_best_cut], best_cut, feature_with_metas[index_best_cut+1])
+                
+                best_score *= non_nans / len(col_x)
+                branches = np.full(len(col_x), -1, dtype=int)
+                mask = ~np.isnan(col_x)
+                branches[mask] = (col_x[mask] > best_cut).astype(int)
+                # print(branches)
+                AAAsuma = np.sum(branches)
+                AAlenght = len(branches)
+                Aresult = len(branches) - np.sum(branches)
+                if index_best_cut in used_indexes:
+                    return REJECT_ATTRIBUTE
+                if len(branches) - np.sum(branches) == 0:
+                    shift = True
+                if np.sum(branches) < self.min_samples_leaf: # premal elementu gre v desnga
+                    index_best_cut += -1 if shift else +1
+                    if index_best_cut < 0 or index_best_cut + 1 >= len(branches):
+                        return REJECT_ATTRIBUTE
+                    used_indexes.append(index_best_cut)
+                    shift = True
+                    continue
+                elif len(branches) - np.sum(branches) < self.min_samples_leaf : # premaw elementov gre v levga
+                    index_best_cut += +1 if shift else -1
+                    if index_best_cut < 0 or index_best_cut + 1 >= len(branches):
+                        return REJECT_ATTRIBUTE
+                    used_indexes.append(index_best_cut)
+                    shift = True
+                    continue
+                else: break
             node = NumericNode(attr, attr_no, best_cut, None)
             return best_score, node, branches, 2
 
@@ -188,6 +222,7 @@ class UncertainTreeLearner(Learner):
         # print("----------new branch---------------")
         is_sparse = sp.issparse(data.X)
         domain = data.domain
+        # print(domain)
         class_var = domain.class_var
         best_score, *best_res = REJECT_ATTRIBUTE
         best_res = [Node(None, None, None)] + best_res[1:]
@@ -218,12 +253,12 @@ class UncertainTreeLearner(Learner):
 
         Returns:
             root node (Node)"""
+        # print(data.domain)
         node_insts = data[active_inst]
         # print(node_insts)
         distr = distribution.Discrete(node_insts, data.domain.class_var)
-        # if len(node_insts) < self.min_samples_leaf:
-        #     print("skip")
-        #     return None
+        if len(node_insts) < self.min_samples_leaf:
+            return None
         if len(node_insts) < self.min_samples_split or \
                 max(distr) >= sum(distr) * self.sufficient_majority or \
                 self.max_depth is not None and level > self.max_depth:
@@ -241,6 +276,7 @@ class UncertainTreeLearner(Learner):
         return node
 
     def fit_storage(self, data):
+        # print("fit_storage", data.domain)
         if self.binarize and any(
                 attr.is_discrete and len(attr.values) > self.MAX_BINARIZATION
                 for attr in data.domain.attributes):
@@ -282,6 +318,7 @@ class OWUncertaintyTree(OWBaseLearner):
     min_internal = Setting(5)
     limit_depth = Setting(True)
     max_depth = Setting(100)
+    uncertainty_multiplyer = Setting(.5)
 
     # Classification only settings
     limit_majority = Setting(True)
@@ -294,6 +331,8 @@ class OWUncertaintyTree(OWBaseLearner):
          "limit_min_internal", "min_internal", 1, 1000),
         ("Limit the maximal tree depth to: ",
          "limit_depth", "max_depth", 1, 1000))
+        
+    doubleSpin_boxes = ("Uncertainty multiplyer: ", "uncertainty_multiplyer", 0, 2, 0.001)
 
     classification_spin_boxes = (
         ("Stop when majority reaches [%]: ",
@@ -302,9 +341,14 @@ class OWUncertaintyTree(OWBaseLearner):
     def add_main_layout(self):
         box = gui.widgetBox(self.controlArea, 'Parameters')
         # the checkbox is put into vBox for alignemnt with other checkboxes
-        gui.checkBox(box, self, "binary_trees", "Induce binary tree",
-                     callback=self.settings_changed,
-                     attribute=Qt.WA_LayoutUsesWidgetRect)
+        # gui.checkBox(box, self, "binary_trees", "Induce binary tree",
+        #              callback=self.settings_changed,
+        #              attribute=Qt.WA_LayoutUsesWidgetRect)
+        label, setting, fromv, tov, incv = self.doubleSpin_boxes
+        gui.doubleSpin(box, self, setting, fromv, tov, incv, label=label,
+                 alignment=Qt.AlignRight,
+                 callback=self.settings_changed,
+                 controlWidth=80)
         for label, check, setting, fromv, tov in self.spin_boxes:
             gui.spin(box, self, setting, fromv, tov, label=label,
                      checked=check, alignment=Qt.AlignRight,
@@ -328,7 +372,8 @@ class OWUncertaintyTree(OWBaseLearner):
             binarize=self.binary_trees,
             preprocessors=self.preprocessors,
             sufficient_majority=(1, self.sufficient_majority / 100)[
-                self.limit_majority])
+                self.limit_majority],
+            uncertainty_multiplyer=self.uncertainty_multiplyer)
 
     def create_learner(self):
         # pylint: disable=not-callable

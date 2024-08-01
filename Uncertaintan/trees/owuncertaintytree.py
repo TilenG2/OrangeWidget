@@ -20,7 +20,7 @@ from Orange.statistics import distribution, contingency
 from copy import deepcopy
 
     
-class UncertainTreeLearner(Learner):
+class UncertaintyTreeLearner(Learner):
     """
     Tree inducer with proper handling of nominal attributes and binarization.
 
@@ -329,7 +329,7 @@ class OWUncertaintyTree(OWBaseLearner):
     priority = 30
     keywords = "tree, uncertainty tree"
 
-    LEARNER = UncertainTreeLearner
+    LEARNER = UncertaintyTreeLearner
 
     binary_trees = Setting(True)
     limit_min_leaf = Setting(True)

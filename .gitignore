@@ -4,3 +4,4 @@ __pycache__
 orange-demo
 *.ows*
 .vscode
+data

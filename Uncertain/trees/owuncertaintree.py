@@ -11,7 +11,7 @@ from Orange.widgets.utils.localization import pl
 from Orange.widgets.utils.owlearnerwidget import OWBaseLearner
 from Orange.widgets.utils.widgetpreview import WidgetPreview
 
-from .uncertaintreelearner import UncertainTreeLearner
+from .util.uncertaintreelearner import UncertainTreeLearner
 
 class OWUncertaintyTree(OWBaseLearner):
     """Tree algorithm with forward pruning."""

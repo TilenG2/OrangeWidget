@@ -49,9 +49,9 @@ class UncertainTreeLearner(Learner):
     MAX_BINARIZATION = 16
 
     def __init__(
-            self, *args, binarize=False, max_depth=None,
-            min_samples_leaf=1, min_samples_split=2, sufficient_majority=0.95,
-            preprocessors=None, uncertainty_multiplyer=0.5, post_hoc=False, **kwargs):
+            self, *args, binarize=False, max_depth=100,
+            min_samples_leaf=1, min_samples_split=5, sufficient_majority=0.95,
+            preprocessors=None, uncertainty_multiplyer=0.5, post_hoc=True, **kwargs):
         super().__init__(preprocessors=preprocessors)
         self.params = {}
         self.binarize = self.params['binarize'] = binarize
@@ -78,65 +78,65 @@ class UncertainTreeLearner(Learner):
         # def _calculate_treshold(e1, e2, u1, u2):
             
 
-        def _score_disc():
-            """Scoring for discrete attributes, no binarization
+        # def _score_disc():
+        #     """Scoring for discrete attributes, no binarization
 
-            The class computes the entropy itself, not by calling other
-            functions. This is to make sure that it uses the same
-            definition as the below classes that compute entropy themselves
-            for efficiency reasons."""
-            n_values = len(attr.values)
-            if n_values < 2:
-                return REJECT_ATTRIBUTE
+        #     The class computes the entropy itself, not by calling other
+        #     functions. This is to make sure that it uses the same
+        #     definition as the below classes that compute entropy themselves
+        #     for efficiency reasons."""
+        #     n_values = len(attr.values)
+        #     if n_values < 2:
+        #         return REJECT_ATTRIBUTE
 
-            cont = _tree_scorers.contingency(col_x, len(data.domain.attributes[attr_no].values),
-                                             data.Y, len(data.domain.class_var.values))
-            attr_distr = np.sum(cont, axis=0)
-            null_nodes = attr_distr < self.min_samples_leaf
-            # This is just for speed. If there is only a single non-null-node,
-            # entropy wouldn't decrease anyway.
-            if sum(null_nodes) >= n_values - 1:
-                return REJECT_ATTRIBUTE
-            cont[:, null_nodes] = 0
-            attr_distr = np.sum(cont, axis=0)
-            cls_distr = np.sum(cont, axis=1)
-            n = np.sum(attr_distr)
-            # Avoid log(0); <= instead of == because we need an array
-            cls_distr[cls_distr <= 0] = 1
-            attr_distr[attr_distr <= 0] = 1
-            cont[cont <= 0] = 1
-            class_entr = n * np.log(n) - np.sum(cls_distr * np.log(cls_distr))
-            attr_entr = np.sum(attr_distr * np.log(attr_distr))
-            cont_entr = np.sum(cont * np.log(cont))
-            score = (class_entr - attr_entr + cont_entr) / n / np.log(2)
-            score *= n / len(data)  # punishment for missing values
-            branches = col_x.copy()
-            branches[np.isnan(branches)] = -1
-            if score == 0:
-                return REJECT_ATTRIBUTE
-            node = DiscreteNode(attr, attr_no, None)
-            return score, node, branches, n_values
+        #     cont = _tree_scorers.contingency(col_x, len(data.domain.attributes[attr_no].values),
+        #                                      data.Y, len(data.domain.class_var.values))
+        #     attr_distr = np.sum(cont, axis=0)
+        #     null_nodes = attr_distr < self.min_samples_leaf
+        #     # This is just for speed. If there is only a single non-null-node,
+        #     # entropy wouldn't decrease anyway.
+        #     if sum(null_nodes) >= n_values - 1:
+        #         return REJECT_ATTRIBUTE
+        #     cont[:, null_nodes] = 0
+        #     attr_distr = np.sum(cont, axis=0)
+        #     cls_distr = np.sum(cont, axis=1)
+        #     n = np.sum(attr_distr)
+        #     # Avoid log(0); <= instead of == because we need an array
+        #     cls_distr[cls_distr <= 0] = 1
+        #     attr_distr[attr_distr <= 0] = 1
+        #     cont[cont <= 0] = 1
+        #     class_entr = n * np.log(n) - np.sum(cls_distr * np.log(cls_distr))
+        #     attr_entr = np.sum(attr_distr * np.log(attr_distr))
+        #     cont_entr = np.sum(cont * np.log(cont))
+        #     score = (class_entr - attr_entr + cont_entr) / n / np.log(2)
+        #     score *= n / len(data)  # punishment for missing values
+        #     branches = col_x.copy()
+        #     branches[np.isnan(branches)] = -1
+        #     if score == 0:
+        #         return REJECT_ATTRIBUTE
+        #     node = DiscreteNode(attr, attr_no, None)
+        #     return score, node, branches, n_values
 
-        def _score_disc_bin():
-            """Scoring for discrete attributes, with binarization"""
-            n_values = len(attr.values)
-            if n_values <= 2:
-                return _score_disc()
-            cont = contingency.Discrete(data, attr)
-            attr_distr = np.sum(cont, axis=0)
-            # Skip instances with missing value of the attribute
-            cls_distr = np.sum(cont, axis=1)
-            if np.sum(attr_distr) == 0:  # all values are missing
-                return REJECT_ATTRIBUTE
-            best_score, best_mapping = _tree_scorers.find_binarization_entropy(
-                cont, cls_distr, attr_distr, self.min_samples_leaf)
-            if best_score <= 0:
-                return REJECT_ATTRIBUTE
-            best_score *= 1 - np.sum(cont.unknowns) / len(data)
-            mapping, branches = MappedDiscreteNode.branches_from_mapping(
-                col_x, best_mapping, n_values)
-            node = MappedDiscreteNode(attr, attr_no, mapping, None)
-            return best_score, node, branches, 2
+        # def _score_disc_bin():
+        #     """Scoring for discrete attributes, with binarization"""
+        #     n_values = len(attr.values)
+        #     if n_values <= 2:
+        #         return _score_disc()
+        #     cont = contingency.Discrete(data, attr)
+        #     attr_distr = np.sum(cont, axis=0)
+        #     # Skip instances with missing value of the attribute
+        #     cls_distr = np.sum(cont, axis=1)
+        #     if np.sum(attr_distr) == 0:  # all values are missing
+        #         return REJECT_ATTRIBUTE
+        #     best_score, best_mapping = _tree_scorers.find_binarization_entropy(
+        #         cont, cls_distr, attr_distr, self.min_samples_leaf)
+        #     if best_score <= 0:
+        #         return REJECT_ATTRIBUTE
+        #     best_score *= 1 - np.sum(cont.unknowns) / len(data)
+        #     mapping, branches = MappedDiscreteNode.branches_from_mapping(
+        #         col_x, best_mapping, n_values)
+        #     node = MappedDiscreteNode(attr, attr_no, mapping, None)
+        #     return best_score, node, branches, 2
 
         def _score_cont():
             """Scoring for numeric attributes"""
@@ -225,13 +225,13 @@ class UncertainTreeLearner(Learner):
         class_var = domain.class_var
         best_score, *best_res = REJECT_ATTRIBUTE
         best_res = [Node(None, None, None)] + best_res[1:]
-        disc_scorer = _score_disc_bin if self.binarize else _score_disc
+        # disc_scorer = _score_disc_bin if self.binarize else _score_disc
         for attr_no, attr in enumerate(domain.attributes):
             col_x = data.X[:, attr_no]
             if is_sparse:
                 col_x = col_x.toarray()
                 col_x = col_x.flatten()
-            sc, *res = disc_scorer() if attr.is_discrete else _score_cont()
+            sc, *res = _score_cont() # disc_scorer() if attr.is_discrete else _score_cont()
             if res[0] is not None and sc > best_score:
                 best_score, best_res = sc, res
         best_res[0].value = distribution.Discrete(data, class_var)

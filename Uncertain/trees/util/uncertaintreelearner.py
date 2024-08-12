@@ -49,12 +49,11 @@ class UncertainTreeLearner(Learner):
     MAX_BINARIZATION = 16
 
     def __init__(
-            self, *args, binarize=False, max_depth=100,
-            min_samples_leaf=1, min_samples_split=5, sufficient_majority=0.95,
+            self, *args, max_depth=None,
+            min_samples_leaf=1, min_samples_split=2, sufficient_majority=0.95,
             preprocessors=None, uncertainty_multiplyer=0.5, post_hoc=True, **kwargs):
         super().__init__(preprocessors=preprocessors)
         self.params = {}
-        self.binarize = self.params['binarize'] = binarize
         self.min_samples_leaf = self.params['min_samples_leaf'] = min_samples_leaf
         self.min_samples_split = self.params['min_samples_split'] = min_samples_split
         self.sufficient_majority = self.params['sufficient_majority'] = sufficient_majority
@@ -283,14 +282,14 @@ class UncertainTreeLearner(Learner):
 
     def fit_storage(self, data):
         # print("fit_storage", data.domain)
-        if self.binarize and any(
-                attr.is_discrete and len(attr.values) > self.MAX_BINARIZATION
-                for attr in data.domain.attributes):
-            # No fallback in the script; widgets can prevent this error
-            # by providing a fallback and issue a warning about doing so
-            raise ValueError("Exhaustive binarization does not handle "
-                             "attributes with more than {} values".
-                             format(self.MAX_BINARIZATION))
+        # if self.binarize and any(
+        #         attr.is_discrete and len(attr.values) > self.MAX_BINARIZATION
+        #         for attr in data.domain.attributes):
+        #     # No fallback in the script; widgets can prevent this error
+        #     # by providing a fallback and issue a warning about doing so
+        #     raise ValueError("Exhaustive binarization does not handle "
+        #                      "attributes with more than {} values".
+        #                      format(self.MAX_BINARIZATION))
 
         active_inst = np.nonzero(~np.isnan(data.Y))[0].astype(np.int32)
         # print(data.domain)

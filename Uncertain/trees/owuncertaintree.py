@@ -38,8 +38,8 @@ class OWUncertaintyTree(OWBaseLearner):
     sufficient_majority = Setting(95)
 
     spin_boxes = (
-        # ("Min. number of instances in leaves: ",
-        #  "limit_min_leaf", "min_leaf", 1, 1000),
+        ("Min. number of instances in leaves: ",
+         "limit_min_leaf", "min_leaf", 1, 1000),
         ("Do not split subsets smaller than: ",
          "limit_min_internal", "min_internal", 1, 1000),
         ("Limit the maximal tree depth to: ",
@@ -54,7 +54,7 @@ class OWUncertaintyTree(OWBaseLearner):
          "limit_majority", "sufficient_majority", 51, 100),)
 
     def add_main_layout(self):
-        box = gui.widgetBox(self.controlArea, 'Parameters')
+        box = gui.widgetBox(self.controlArea, 'Uncertianty Parameters')
         # the checkbox is put into vBox for alignemnt with other checkboxes
         # gui.checkBox(box, self, "binary_trees", "Induce binary tree",
         #              callback=self.settings_changed,
@@ -67,6 +67,7 @@ class OWUncertaintyTree(OWBaseLearner):
         gui.checkBox(box, self, "post_hoc", "Post hoc pruning",
                      callback=self.settings_changed,
                      attribute=Qt.WA_LayoutUsesWidgetRect)
+        box = gui.widgetBox(self.controlArea, 'Parameters')
         for label, check, setting, fromv, tov in self.spin_boxes:
             gui.spin(box, self, setting, fromv, tov, label=label,
                      checked=check, alignment=Qt.AlignRight,

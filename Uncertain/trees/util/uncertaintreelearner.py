@@ -3,8 +3,8 @@ import scipy.sparse as sp
 
 from Orange.classification import _tree_scorers
 from Orange.classification import Learner
-from Orange.tree import Node, DiscreteNode, MappedDiscreteNode, NumericNode, TreeModel
-from Orange.statistics import distribution, contingency
+from Orange.tree import Node, NumericNode, TreeModel
+from Orange.statistics import distribution
     
 class UncertainTreeLearner(Learner):
     """
@@ -75,7 +75,6 @@ class UncertainTreeLearner(Learner):
         REJECT_ATTRIBUTE = 0, None, None, 0
         
         # def _calculate_treshold(e1, e2, u1, u2):
-            
 
         # def _score_disc():
         #     """Scoring for discrete attributes, no binarization
@@ -153,16 +152,14 @@ class UncertainTreeLearner(Learner):
             #     feature_with_metas.append([X[attr_no], meta[attr_no]])
             # feature_with_metas = np.array(feature_with_metas)
             
+            #TODO generalize this
             feature_with_metas = np.hstack((
                 data.get_column(attr_no)[:, None],
                 data.get_column(domain.attributes[attr_no].name.replace("Observed Value", "Uncertainty"))[:, None]
             ))
             
             feature_with_metas = feature_with_metas[feature_with_metas[:, 0].argsort()]
-            # print("_______")
-            # print(attr_no, "X     meta")
-            # print(feature_with_metas)
-            index_best_cut = np.where(feature_with_metas[:, 0]==best_cut)[0][-1]
+            index_best_cut = np.where(feature_with_metas[:, 0] == best_cut)[0][-1]
             if self.post_hoc:
                 best_cut = (feature_with_metas[index_best_cut][0] + feature_with_metas[index_best_cut+1][0]) * 0.5
 
@@ -176,18 +173,14 @@ class UncertainTreeLearner(Learner):
             else:
                 # used_indexes = []
                 # shift = False
-                # print("orig best cut", best_cut)
                 best_cut = (feature_with_metas[index_best_cut][0] + feature_with_metas[index_best_cut+1][0]) * 0.5
-                # print("L best_cut R", feature_with_metas[index_best_cut], best_cut, feature_with_metas[index_best_cut+1])
                 offset = (-feature_with_metas[index_best_cut][1] + feature_with_metas[index_best_cut+1][1]) * self.uncertainty_multiplyer
                 best_cut = best_cut + offset
-                # print("L best_cut+offset R", feature_with_metas[index_best_cut], best_cut, feature_with_metas[index_best_cut+1])
                     
                 best_score *= non_nans / len(col_x)
                 branches = np.full(len(col_x), -1, dtype=int)
                 mask = ~np.isnan(col_x)
                 branches[mask] = (col_x[mask] > best_cut).astype(int)
-                    # print(branches)
                     # AAAsuma = np.sum(branches)
                     # AAlenght = len(branches)
                     # Aresult = len(branches) - np.sum(branches)
@@ -217,10 +210,8 @@ class UncertainTreeLearner(Learner):
 
         #######################################
         # The real _select_attr starts here
-        # print("----------new branch---------------")
         is_sparse = sp.issparse(data.X)
         domain = data.domain
-        # print(domain)
         class_var = domain.class_var
         best_score, *best_res = REJECT_ATTRIBUTE
         best_res = [Node(None, None, None)] + best_res[1:]
@@ -237,9 +228,6 @@ class UncertainTreeLearner(Learner):
         return best_res
 
     def _build_tree(self, data, active_inst, level=1, finish=False):
-        # print(type(data),data, "data")
-        # print(type(active_inst),active_inst, "active_inst")
-        # print()
         # https://stackoverflow.com/a/3844832
         from itertools import groupby
         
@@ -251,24 +239,20 @@ class UncertainTreeLearner(Learner):
 
         Returns:
             root node (Node)"""
-        # print(data.domain)
         node_insts = data[active_inst]
-        # print(node_insts)
         distr = distribution.Discrete(node_insts, data.domain.class_var)
         if len(node_insts) < self.min_samples_leaf:
             return None
         if len(node_insts) < self.min_samples_split or \
                 max(distr) >= sum(distr) * self.sufficient_majority or \
                 self.max_depth is not None and level > self.max_depth:
-            # print("skip1")        
             node, branches, n_children = Node(None, None, distr), None, 0
         else:
             node, branches, n_children = self._select_attr(node_insts)
             if branches is not None and _all_equal(branches):
                 node, branches, n_children = Node(None, None, distr), None, 0
         node.subset = active_inst
-        # if finish:
-        #     return node
+        
         if branches is not None: # len(branches) - self.min_samples_leaf > np.sum(branches) >= self.min_samples_leaf
             # if _all_equal(branches):
             #     node_copy = deepcopy(node)
@@ -277,7 +261,6 @@ class UncertainTreeLearner(Learner):
                 node.children = [
                     self._build_tree(data, active_inst[branches == br], level + 1, finish=len(active_inst[branches == br])==len(branches))
                     for br in range(n_children)]
-        # print(node)
         return node
 
     def fit_storage(self, data):
@@ -291,11 +274,7 @@ class UncertainTreeLearner(Learner):
         #                      "attributes with more than {} values".
         #                      format(self.MAX_BINARIZATION))
 
-        active_inst = np.nonzero(~np.isnan(data.Y))[0].astype(np.int32)
-        # print(data.domain)
-        # print(data.X)
-        # print(data.Y)
-        # print("--------------fit()------------") 
+        active_inst = np.nonzero(~np.isnan(data.Y))[0].astype(np.int32) 
         root = self._build_tree(data, active_inst)
         if root is None:
             distr = distribution.Discrete(data, data.domain.class_var)

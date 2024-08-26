@@ -87,7 +87,7 @@ class OWUncertaintyTree(OWBaseLearner):
         return dict(
             max_depth=(None, self.max_depth)[self.limit_depth],
             min_samples_split=(2, self.min_internal)[self.limit_min_internal],
-            # min_samples_leaf=(1, self.min_leaf)[self.limit_min_leaf],
+            min_samples_leaf=(1, self.min_leaf)[self.limit_min_leaf],
             binarize=self.binary_trees,
             preprocessors=self.preprocessors,
             sufficient_majority=(1, self.sufficient_majority / 100)[

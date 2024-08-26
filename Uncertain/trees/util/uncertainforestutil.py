@@ -1,16 +1,8 @@
 import numpy as np
 
 from Orange.base import RandomForestModel
-from Orange.classification import SklLearner, SklModel
-from Orange.classification.tree import SklTreeClassifier
-from Orange.data import Domain, Variable, DiscreteVariable
-from Orange.preprocess.score import LearnerScorer
-from Orange.classification.tree import TreeLearner
-from Orange.base import TreeModel
+from Orange.data import Domain
 from Orange.data.table import Table
-from copy import deepcopy
-
-import sklearn.model_selection as skl
 
 from .uncertaintreelearner import UncertainTreeLearner
 
@@ -67,7 +59,6 @@ class UncertainForestLearner(Learner):
         
     
     def _bag_data(self, data):
-        # TODO Number of features at each split
         if self.max_features is not None:
             _ , features = data.X.shape
             if self.max_features < features:
@@ -78,21 +69,7 @@ class UncertainForestLearner(Learner):
                                         X     = data.X[:, selected_columns],
                                         Y     = data.Y,
                                         metas = data.metas)
-                                
-                # attributes = tuple(np.array(data.domain.attributes)[a])
-                # X = data.X[:, a]
-                # metas = data.domain.metas
-                # M = data.metas
-                # class_var = data.domain.class_var
-                # Y = data.Y
                 
-                # domain = Domain(attributes = np.array(data.domain.attributes)[a],
-                #                 class_vars = data.domain.class_var,
-                #                 metas = data.domain.metas)
-                
-                
-                
-        # TODO Balanced class distribution DONE I THINK
         if self.balanced_classes and data.domain.has_discrete_class:
             for i, value in enumerate(np.unique(data.Y)):
                 indices, = np.where(data.Y == value)

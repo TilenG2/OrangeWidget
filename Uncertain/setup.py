@@ -1,9 +1,9 @@
 from setuptools import setup
 
 setup(name="Uncertain",
-      packages=["trees"],
-      package_data={"trees": ["icons/*.svg"]},
+      packages=["uncertain"],
+      package_data={"uncertain": ["icons/*.svg"]},
       classifiers=["Example :: Invalid"],
-      # Declare trees package to contain widgets for the "Trees" category
-      entry_points={"orange.widgets": "Uncertainty = trees"},
+      # Declare uncertain package to contain widgets for the "Uncertainty" category
+      entry_points={"orange.widgets": "Uncertainty = uncertain"},
       )

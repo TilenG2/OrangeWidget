@@ -22,11 +22,6 @@ class UncertainTreeLearner(Learner):
     If the tree is not binary, it can contain zero-branches.
 
     Args:
-        binarize (bool):
-            if `True` the inducer will find optimal split into two
-            subsets for values of discrete attributes. If `False` (default),
-            each value gets its branch.
-
         min_samples_leaf (float):
             the minimal number of data instances in a leaf
 
@@ -73,8 +68,6 @@ class UncertainTreeLearner(Learner):
         attr = attr_no = None
         col_x = None
         REJECT_ATTRIBUTE = 0, None, None, 0
-        
-        # def _calculate_treshold(e1, e2, u1, u2):
 
         # def _score_disc():
         #     """Scoring for discrete attributes, no binarization
@@ -160,6 +153,7 @@ class UncertainTreeLearner(Learner):
             
             feature_with_metas = feature_with_metas[feature_with_metas[:, 0].argsort()]
             index_best_cut = np.where(feature_with_metas[:, 0] == best_cut)[0][-1]
+            # Ajutst the cut based on the uncertainty
             if self.post_hoc:
                 best_cut = (feature_with_metas[index_best_cut][0] + feature_with_metas[index_best_cut+1][0]) * 0.5
 

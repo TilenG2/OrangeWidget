@@ -5,6 +5,8 @@ from Orange.classification import _tree_scorers
 from Orange.classification import Learner
 from Orange.tree import Node, NumericNode, TreeModel
 from Orange.statistics import distribution
+
+from .find_threshold_entropy import find_threshold_entropy
     
 class UncertainTreeLearner(Learner):
     """
@@ -134,9 +136,16 @@ class UncertainTreeLearner(Learner):
             nans = np.sum(np.isnan(col_x))
             non_nans = len(col_x) - nans
             arginds = np.argsort(col_x)[:non_nans]
-            best_score, best_cut = _tree_scorers.find_threshold_entropy(
-                col_x, data.Y, arginds,
-                len(class_var.values), self.min_samples_leaf)
+            
+            if self.post_hoc:
+                best_score, best_cut = _tree_scorers.find_threshold_entropy(
+                    col_x, data.Y, arginds,
+                    len(class_var.values), self.min_samples_leaf)
+            else:
+                best_score, best_cut = find_threshold_entropy(
+                    col_x, data.Y, col_m, arginds,
+                    len(class_var.values), self.min_samples_leaf)
+            
             if best_score == 0:
                 return REJECT_ATTRIBUTE
             
@@ -152,9 +161,9 @@ class UncertainTreeLearner(Learner):
             ))
             
             feature_with_metas = feature_with_metas[feature_with_metas[:, 0].argsort()]
-            index_best_cut = np.where(feature_with_metas[:, 0] == best_cut)[0][-1]
             # Ajutst the cut based on the uncertainty
             if self.post_hoc:
+                index_best_cut = np.where(feature_with_metas[:, 0] == best_cut)[0][-1]
                 best_cut = (feature_with_metas[index_best_cut][0] + feature_with_metas[index_best_cut+1][0]) * 0.5
 
                 best_score *= non_nans / len(col_x)
@@ -167,14 +176,19 @@ class UncertainTreeLearner(Learner):
             else:
                 # used_indexes = []
                 # shift = False
-                best_cut = (feature_with_metas[index_best_cut][0] + feature_with_metas[index_best_cut+1][0]) * 0.5
-                offset = (-feature_with_metas[index_best_cut][1] + feature_with_metas[index_best_cut+1][1]) * self.uncertainty_multiplyer
-                best_cut = best_cut + offset
+                # best_cut = (feature_with_metas[index_best_cut][0] + feature_with_metas[index_best_cut+1][0]) * 0.5
+                # offset = (-feature_with_metas[index_best_cut][1] + feature_with_metas[index_best_cut+1][1]) * self.uncertainty_multiplyer
+                # best_cut = best_cut + offset
                     
                 best_score *= non_nans / len(col_x)
                 branches = np.full(len(col_x), -1, dtype=int)
                 mask = ~np.isnan(col_x)
                 branches[mask] = (col_x[mask] > best_cut).astype(int)
+                
+                # print(branches)
+                # print(best_cut)
+                # print("\n")
+                
                     # AAAsuma = np.sum(branches)
                     # AAlenght = len(branches)
                     # Aresult = len(branches) - np.sum(branches)
@@ -212,9 +226,12 @@ class UncertainTreeLearner(Learner):
         # disc_scorer = _score_disc_bin if self.binarize else _score_disc
         for attr_no, attr in enumerate(domain.attributes):
             col_x = data.X[:, attr_no]
+            col_m = data.metas[:, attr_no]
             if is_sparse:
                 col_x = col_x.toarray()
                 col_x = col_x.flatten()
+                col_m = col_m.toarray()
+                col_m = col_m.flatten()
             sc, *res = _score_cont() # disc_scorer() if attr.is_discrete else _score_cont()
             if res[0] is not None and sc > best_score:
                 best_score, best_res = sc, res

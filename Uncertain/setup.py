@@ -1,6 +1,6 @@
 from setuptools import setup
 
-setup(name="Uncertain",
+setup(name="Uncertainty",
       packages=["uncertain"],
       package_data={"uncertain": ["icons/*.svg"]},
       classifiers=["Example :: Invalid"],

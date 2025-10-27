@@ -6,7 +6,7 @@ from Orange.classification import Learner
 from Orange.tree import Node, NumericNode, TreeModel
 from Orange.statistics import distribution
 
-from .find_threshold_entropy import find_threshold_entropy
+from .find_threshold_entropy_uncertain import find_threshold_entropy_uncertain
     
 class UncertainTreeLearner(Learner):
     """
@@ -136,83 +136,50 @@ class UncertainTreeLearner(Learner):
             nans = np.sum(np.isnan(col_x))
             non_nans = len(col_x) - nans
             arginds = np.argsort(col_x)[:non_nans]
-            
             if self.post_hoc:
                 best_score, best_cut = _tree_scorers.find_threshold_entropy(
                     col_x, data.Y, arginds,
                     len(class_var.values), self.min_samples_leaf)
             else:
-                best_score, best_cut = find_threshold_entropy(
+                best_score, best_cut = find_threshold_entropy_uncertain(
                     col_x, data.Y, col_m, arginds,
-                    len(class_var.values), self.min_samples_leaf)
+                    len(class_var.values), self.min_samples_leaf, self.uncertainty_multiplyer)
             
             if best_score == 0:
                 return REJECT_ATTRIBUTE
             
-            # feature_with_metas = []
-            # for X, meta in zip(data.X, data.metas):
-            #     feature_with_metas.append([X[attr_no], meta[attr_no]])
-            # feature_with_metas = np.array(feature_with_metas)
             
-            #TODO generalize this
-            feature_with_metas = np.hstack((
-                data.get_column(attr_no)[:, None],
-                data.get_column(domain.attributes[attr_no].name.replace("Observed Value", "Uncertainty"))[:, None]
-            ))
-            
-            feature_with_metas = feature_with_metas[feature_with_metas[:, 0].argsort()]
             # Ajutst the cut based on the uncertainty
             if self.post_hoc:
-                index_best_cut = np.where(feature_with_metas[:, 0] == best_cut)[0][-1]
-                best_cut = (feature_with_metas[index_best_cut][0] + feature_with_metas[index_best_cut+1][0]) * 0.5
-
-                best_score *= non_nans / len(col_x)
-                branches = np.full(len(col_x), -1, dtype=int)
-                mask = ~np.isnan(col_x)
-                branches[mask] = (col_x[mask] > best_cut).astype(int)
-
-                offset = (-feature_with_metas[index_best_cut][1] + feature_with_metas[index_best_cut+1][1]) * self.uncertainty_multiplyer
-                best_cut = best_cut + offset
-            else:
-                # used_indexes = []
-                # shift = False
-                # best_cut = (feature_with_metas[index_best_cut][0] + feature_with_metas[index_best_cut+1][0]) * 0.5
-                # offset = (-feature_with_metas[index_best_cut][1] + feature_with_metas[index_best_cut+1][1]) * self.uncertainty_multiplyer
-                # best_cut = best_cut + offset
-                    
-                best_score *= non_nans / len(col_x)
-                branches = np.full(len(col_x), -1, dtype=int)
-                mask = ~np.isnan(col_x)
-                branches[mask] = (col_x[mask] > best_cut).astype(int)
+                # feature_with_metas = []
+                # for X, meta in zip(data.X, data.metas):
+                #     feature_with_metas.append([X[attr_no], meta[attr_no]])
+                # feature_with_metas = np.array(feature_with_metas)
                 
+                #TODO generalize this
+                feature_with_metas = np.hstack((
+                    data.get_column(attr_no)[:, None],
+                    data.get_column(domain.attributes[attr_no].name.replace("Observed Value", "Uncertainty"))[:, None]
+                ))
+                branches = feature_with_metas[:,0] <= best_cut
+                
+                element_lt_cut = feature_with_metas[branches][np.argmax(feature_with_metas[branches][:,0])]
+                element_gt_cut = feature_with_metas[~branches][np.argmin(feature_with_metas[~branches][:,0])]
+                
+                best_cut = (element_lt_cut[0] + element_gt_cut[0]) * 0.5 # Calculate the midle point sice orange cuts at one of the elements
+                offset = (-element_lt_cut[1] + element_gt_cut[1]) * self.uncertainty_multiplyer # correction to the uncertain side
+            
+            
+            best_score *= non_nans / len(col_x)
+            branches = np.full(len(col_x), -1, dtype=int)
+            mask = ~np.isnan(col_x)
+            branches[mask] = (col_x[mask] > best_cut).astype(int)
+            
+            if self.post_hoc:
+                best_cut = best_cut + offset
                 # print(branches)
                 # print(best_cut)
                 # print("\n")
-                
-                    # AAAsuma = np.sum(branches)
-                    # AAlenght = len(branches)
-                    # Aresult = len(branches) - np.sum(branches)
-                    # if len(branches) - np.sum(branches) == 0 or np.sum(branches) == 0:
-                    #     shift = True
-                    # if np.sum(branches) < self.min_samples_leaf: # premal elementu gre v desnga
-                    #     index_best_cut += -1 if shift else +1
-                    #     if index_best_cut < 0 or index_best_cut + 1 >= len(branches):
-                    #         return REJECT_ATTRIBUTE
-                    #     if index_best_cut in used_indexes:
-                    #         return REJECT_ATTRIBUTE
-                    #     used_indexes.append(index_best_cut)
-                    #     shift = True
-                    #     continue
-                    # elif len(branches) - np.sum(branches) < self.min_samples_leaf : # premaw elementov gre v levga
-                    #     index_best_cut += +1 if shift else -1
-                    #     if index_best_cut < 0 or index_best_cut + 1 >= len(branches):
-                    #         return REJECT_ATTRIBUTE
-                    #     if index_best_cut in used_indexes:
-                    #         return REJECT_ATTRIBUTE
-                    #     used_indexes.append(index_best_cut)
-                    #     shift = True
-                    #     continue
-                    # else: break
             node = NumericNode(attr, attr_no, best_cut, None)
             return best_score, node, branches, 2
 
@@ -286,6 +253,7 @@ class UncertainTreeLearner(Learner):
         #                      format(self.MAX_BINARIZATION))
 
         active_inst = np.nonzero(~np.isnan(data.Y))[0].astype(np.int32) 
+        # print(active_inst)
         root = self._build_tree(data, active_inst)
         if root is None:
             distr = distribution.Discrete(data, data.domain.class_var)

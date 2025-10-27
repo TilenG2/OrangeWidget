@@ -1,9 +1,9 @@
 import numpy as np
 from math import log
 
-def find_threshold_entropy(x, y, m,
+def find_threshold_entropy_uncertain(x, y, m,
                            idx,
-                            n_classes, min_leaf):
+                            n_classes, min_leaf, uncertainty_multiplyer):
     """
     Find the threshold for continuous attribute values that maximizes
     information gain.
@@ -18,6 +18,7 @@ def find_threshold_entropy(x, y, m,
         idx: arg-sorted indices of x (and y)
         n_classes: the number of classes
         min_leaf: the minimal number of instances on each side of the threshold
+        uncertainty_multiplyer: uncertainty multiplyer 
 
     Returns:
         (highest information gain, the corresponding optimal threshold)
@@ -64,7 +65,7 @@ def find_threshold_entropy(x, y, m,
         distr[curr_y] -= 1
         distr[n_classes + curr_y] += 1
         i_offset = 0
-        offset = (-m[idx[i]] + m[idx[i+1]]) * 0.5 # TODO dodaj spremenljivko self.uncertainty_multiplyer
+        offset = (-m[idx[i]] + m[idx[i+1]]) * uncertainty_multiplyer # correction to the uncertain side
         cut = (x[idx[i]] + x[idx[i+1]]) * 0.5
         if offset < 0:  # glede na to a se offset zveče al zmanša maš 2 variante al se premekne levo al desno nov treshold
             while i + i_offset > 0 and cut + offset < x[idx[i + i_offset]]:
@@ -116,9 +117,9 @@ y = np.array(y)
 m = np.array(m)
 idx = np.array(idx)
 
-best_score, best_cut = find_threshold_entropy(x, y, m,
+best_score, best_cut = find_threshold_entropy_uncertain(x, y, m,
                            idx,
-                            n_classes, min_leaf)
+                            n_classes, min_leaf, 0.5)
 
 print(best_score, best_cut)
 print(x > best_cut)

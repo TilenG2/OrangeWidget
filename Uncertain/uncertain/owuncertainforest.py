@@ -30,8 +30,12 @@ class OWUncertainForest(OWBaseLearner):
     use_max_depth = settings.Setting(False)
     min_samples_split = settings.Setting(5)
     use_min_samples_split = settings.Setting(True)
+    uncertainty_multiplyer = settings.Setting(0.5)
+    post_hoc = settings.Setting(False)
     
     class_weight = settings.Setting(False)
+
+    doubleSpin_boxes = ("Uncertainty multiplyer: ", "uncertainty_multiplyer", 0, 2, 0.001)
 
     class Error(OWBaseLearner.Error):
         not_enough_features = Msg("Insufficient number of attributes ({})")
@@ -42,6 +46,11 @@ class OWUncertainForest(OWBaseLearner):
     def add_main_layout(self):
         # this is part of init, pylint: disable=attribute-defined-outside-init
         box = gui.vBox(self.controlArea, 'Basic Properties')
+        label, setting, fromv, tov, incv = self.doubleSpin_boxes
+        gui.doubleSpin(box, self, setting, fromv, tov, incv, label=label,
+                 alignment=Qt.AlignRight,
+                 callback=self.settings_changed,
+                 controlWidth=80)
         self.n_trees_spin = gui.spin(
             box, self, "n_trees", minv=1, maxv=10000, controlWidth=80,
             alignment=Qt.AlignRight, label="Number of trees: ",
@@ -62,6 +71,9 @@ class OWUncertainForest(OWBaseLearner):
             tooltip="Weigh classes inversely proportional to their frequencies.",
             attribute=Qt.WA_LayoutUsesWidgetRect
         )
+        gui.checkBox(box, self, "post_hoc", "Post hoc pruning",
+                     callback=self.settings_changed,
+                     attribute=Qt.WA_LayoutUsesWidgetRect)
 
         box = gui.vBox(self.controlArea, "Growth Control")
         self.max_depth_spin = gui.spin(
@@ -77,7 +89,10 @@ class OWUncertainForest(OWBaseLearner):
 
     def create_learner(self):
         self.Warning.class_weights_used.clear()
-        common_args = {"n_trees": self.n_trees}
+        print(self.uncertainty_multiplyer, type(self.uncertainty_multiplyer))        
+        common_args = {"n_trees": self.n_trees,
+                       "uncertainty_multiplyer": self.uncertainty_multiplyer,
+                        "post_hoc" : self.post_hoc}
         if self.use_max_features:
             common_args["max_features"] = self.max_features
         if self.use_random_state:

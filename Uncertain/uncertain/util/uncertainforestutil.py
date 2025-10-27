@@ -48,7 +48,7 @@ class UncertainForestLearner(Learner):
 
     def __init__(self, n_trees=10, max_features=None, random_state=None,
                  max_depth=None, min_samples_split=2, preprocessors=None,
-                 balanced_classes = False, **kwargs):
+                 balanced_classes = False, uncertainty_multiplyer = 0.5, post_hoc = False, **kwargs):
         super().__init__(preprocessors=preprocessors)
         self.n_trees = n_trees
         self.max_features = max_features
@@ -56,7 +56,8 @@ class UncertainForestLearner(Learner):
         self.max_depth = max_depth
         self.min_samples_split = min_samples_split
         self.balanced_classes = balanced_classes
-        
+        self.uncertainty_multiplyer = uncertainty_multiplyer
+        self.post_hoc = post_hoc
     
     def _bag_data(self, data):
         if self.max_features is not None:
@@ -88,7 +89,9 @@ class UncertainForestLearner(Learner):
         trees = []
         for _ in range(self.n_trees):
             tree = UncertainTreeLearner(max_depth = self.max_depth,
-                                        min_samples_split = self.min_samples_split) # TODO change parameters
+                                        min_samples_split = self.min_samples_split,
+                                        uncertainty_multiplyer = self.uncertainty_multiplyer,
+                                        post_hoc = self.post_hoc) # TODO change parameters
             bagged_data = self._bag_data(data)
             model = tree.fit_storage(data=bagged_data)
             trees.append(model) 

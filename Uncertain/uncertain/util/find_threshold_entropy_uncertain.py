@@ -121,6 +121,6 @@ best_score, best_cut = find_threshold_entropy_uncertain(x, y, m,
                            idx,
                             n_classes, min_leaf, 0.5)
 
-print(best_score, best_cut)
-print(x > best_cut)
+# print(best_score, best_cut)
+# print(x > best_cut)
 

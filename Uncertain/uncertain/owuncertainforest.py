@@ -89,7 +89,7 @@ class OWUncertainForest(OWBaseLearner):
 
     def create_learner(self):
         self.Warning.class_weights_used.clear()
-        print(self.uncertainty_multiplyer, type(self.uncertainty_multiplyer))        
+        # print(self.uncertainty_multiplyer, type(self.uncertainty_multiplyer))        
         common_args = {"n_trees": self.n_trees,
                        "uncertainty_multiplyer": self.uncertainty_multiplyer,
                         "post_hoc" : self.post_hoc}

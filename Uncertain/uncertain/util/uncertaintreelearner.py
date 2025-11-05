@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.sparse as sp
+import re
 
 from Orange.classification import _tree_scorers
 from Orange.classification import Learner
@@ -70,6 +71,41 @@ class UncertainTreeLearner(Learner):
         attr = attr_no = None
         col_x = None
         REJECT_ATTRIBUTE = 0, None, None, 0
+        
+        def map_attr_to_meta_by_number(domain):
+            """
+            Map attribute name -> corresponding meta variable name (or None).
+
+            Matching logic: look for a meta whose name contains the attribute name
+            prefixed with an underscore (e.g. '__attr') — matching is case-insensitive.
+            Returns a dict mapping `attr.name` -> `meta.name` (original case) or None.
+            """
+            # build lowercase meta name -> meta Variable map for quick, case-insensitive lookup
+            name_to_meta = {}
+            for meta in domain.metas:
+                if meta is None:
+                    continue
+                name_to_meta[meta.name.lower()] = meta
+
+            # build attr -> meta mapping (by attr.name)
+            attr_to_meta = {}
+            for attr in domain.attributes:
+                # target token is attribute name prefixed with an underscore
+                target = '__' + attr.name
+                target_lower = target.lower()
+
+                # Try exact lookup first (case-insensitive)
+                meta = name_to_meta.get(target_lower)
+
+                # If not found, try to find any meta name that contains the token (case-insensitive)
+                if meta is None:
+                    for mname_lower, mobj in name_to_meta.items():
+                        if target_lower in mname_lower:
+                            meta = mobj
+                            break
+
+                attr_to_meta[attr.name] = meta.name if meta is not None else None
+            return attr_to_meta
 
         # def _score_disc():
         #     """Scoring for discrete attributes, no binarization
@@ -157,10 +193,9 @@ class UncertainTreeLearner(Learner):
                 # feature_with_metas = np.array(feature_with_metas)
                 
                 #TODO generalize this
-                feature_with_metas = np.hstack((
-                    data.get_column(attr_no)[:, None],
-                    data.get_column(domain.attributes[attr_no].name.replace("Observed Value", "Uncertainty"))[:, None]
-                ))
+                # print(data.get_column(attr_no)[:, None])
+                feature_with_metas = np.column_stack((col_x, col_m))
+
                 branches = feature_with_metas[:,0] <= best_cut
                 
                 element_lt_cut = feature_with_metas[branches][np.argmax(feature_with_metas[branches][:,0])]
@@ -187,13 +222,14 @@ class UncertainTreeLearner(Learner):
         # The real _select_attr starts here
         is_sparse = sp.issparse(data.X)
         domain = data.domain
+        attr_to_meta = map_attr_to_meta_by_number(domain)
         class_var = domain.class_var
         best_score, *best_res = REJECT_ATTRIBUTE
         best_res = [Node(None, None, None)] + best_res[1:]
         # disc_scorer = _score_disc_bin if self.binarize else _score_disc
         for attr_no, attr in enumerate(domain.attributes):
             col_x = data.X[:, attr_no]
-            col_m = data.metas[:, attr_no]
+            col_m = data.get_column(attr_to_meta[attr.name])
             if is_sparse:
                 col_x = col_x.toarray()
                 col_x = col_x.flatten()
